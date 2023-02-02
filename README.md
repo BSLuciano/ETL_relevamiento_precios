@@ -134,21 +134,25 @@ docker run -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=ROOTUSER" -e "MINIO_ROO
 
         
 ## Diagrama de flujo
-![]https://github.com/BSLuciano/ETL_relevamiento_precios/blob/main/images/diagrama-de-flujo.png
+![diagrama de flujo](images/diagrama-de-flujo.png)
 
 ## DAGs
 
 #### Carga inicial
+![carga inicial](images/DAG-carga-inicial.png)
 
 
 #### Carga incremental
+![carga incremental](images/DAG-carga-incremental.png)
 
 
 ## Conexiones
 
 #### Airflow-MinIO
+![diagrama de flujo](images/minio-conn.png)
 
 
 #### Airflow-PostgreSQL
+![diagrama de flujo](images/postgres-conn.png)
 
 
