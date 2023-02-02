@@ -134,7 +134,7 @@ docker run -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=ROOTUSER" -e "MINIO_ROO
 
         
 ## Diagrama de flujo
-
+![]https://github.com/BSLuciano/ETL_relevamiento_precios/blob/main/images/diagrama-de-flujo.png
 
 ## DAGs
 
