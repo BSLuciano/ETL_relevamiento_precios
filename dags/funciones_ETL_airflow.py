@@ -9,9 +9,9 @@ from datetime import datetime
 from conexion_DB import *
 from funciones_MinIO import *
 
-path_originales = '/opt/airflow/dags/Datasets/Originales/'
-path_transformados = '/opt/airflow/dags/Datasets/Transformados/'
 
+# Dirección de archivos para ETL con carga en conjunto
+path_or = '/opt/airflow/dags/Datasets/Originales/'
 
 
 # EXTRACCIÓN
@@ -161,9 +161,9 @@ def extract(path):
 
 # TRANSFORMACIÓN
 
-def transform_sucursal():
+def transform_sucursal(bucket:str):
 
-    dicc_df = extract(path_originales)
+    dicc_df = extract(path_or)
     # REGISTROS DUPLICADOS:
 
     # Bucle para eliminar los resgistros duplicados
@@ -197,17 +197,17 @@ def transform_sucursal():
                                     keep='first'
                                     )
 
-    # Guardo un archivo csv en MinIO con las tranformaciones realizadas
+    # Guardo un archivo parquet en MinIO con las tranformaciones realizadas
     for key in dicc_df.keys():
         if "sucursal" in key:
             df = dicc_df[key]
             key = key
-            Load_MinIO(df, key)
+            Load_MinIO(bucket, df, key)
 
 
-def transform_producto():
+def transform_producto(bucket:str):
 
-    dicc_df = extract(path_originales)
+    dicc_df = extract(path_or)
 
     # REGISTROS DUPLICADOS:
 
@@ -237,6 +237,22 @@ def transform_producto():
                 if col == 'id':
                     dicc_df[key].rename(columns = {col:'producto_id'}, inplace = True)
 
+    # Función para corregir errores en los id y poner el tipo de dato correcto
+    def mod_id_prod(x):
+        if isinstance(x,str):
+            x = x.split('-')[-1]
+        elif isinstance(x,float):
+            x = int(x)
+        else:    
+            x=x
+        return str(x).zfill(13) # Esta línea es para que los id queden con el formato de código EAN de 13 dígitos
+
+    for key in dicc_df.keys():
+        if 'precios_semana' in key or 'producto' in key:
+            for col in dicc_df[key].columns:
+                if col == 'producto_id':
+                    dicc_df[key][col] = dicc_df[key][col].apply(mod_id_prod)
+
     # Elimino id duplicados de los DF 'producto' y 'sucursal'
     # debido a que serán primary key en la base de datos
     for key in dicc_df.keys():
@@ -249,17 +265,17 @@ def transform_producto():
                                     keep='first'
                                     )
 
-    # Guardo un archivo csv en MinIO con las tranformaciones realizadas
+    # Guardo un archivo parquet en MinIO con las tranformaciones realizadas
     for key in dicc_df.keys():
         if "producto" in key:
             df = dicc_df[key]
             key = key
-            Load_MinIO(df, key)
+            Load_MinIO(bucket, df, key)
 
 
-def transform_precios():
+def transform_precios(bucket:str):
 
-    dicc_df = extract(path_originales)
+    dicc_df = extract(path_or)
 
     # REGISTROS DUPLICADOS:
 
@@ -343,21 +359,21 @@ def transform_precios():
     for key in dicc_df.keys():   
         dicc_df[key].drop_duplicates(inplace = True)
 
-    # Guardo un archivo csv en MinIO con las tranformaciones realizadas
+    # Guardo un archivo parquet en MinIO con las tranformaciones realizadas
     for key in dicc_df.keys():
         if "precio" in key:
             df = dicc_df[key]
             key = key
-            Load_MinIO(df, key)
+            Load_MinIO(bucket, df, key)
 
 
 # CARGA
 
 # El parámetro a pasar a la función es un diccionario de dataframes
 
-def load():
+def load(bucket:str):
 
-    dicc_df = minio_download(bucket)
+    dicc_df = get_data_minio_v1(bucket)
 
     # Cargo el df 'prodcuto' a la tabla 'producto' de la base de datos
     for key in dicc_df.keys():
@@ -384,3 +400,116 @@ def load():
 
 
 
+# ______________________________________________________________________________________________________ # 
+
+
+
+# CARGA INCREMENTAL:
+
+
+def transform_precios_CI(bucket_extract:str, bucket_load:str):
+
+    dicc_df = get_data_minio_v2(bucket = bucket_extract)
+
+    key = list(dicc_df.keys())[-1]
+    new_key = key.split('.')[0]
+    dicc_df[new_key] = dicc_df[key]
+    del dicc_df[key]
+
+    # REGISTROS DUPLICADOS:
+
+    # Bucle para eliminar los resgistros duplicados
+    for key in dicc_df.keys():   
+        dicc_df[key].drop_duplicates(inplace = True)
+
+
+    # VALORES FALTANTES:
+
+    # Hay datos de precios con valores iguales a '' los cuales deberán reemplazarse por np.nan para ser tratados como los demás valores faltantes
+    # Reemplazo los valores '' por np.nan 
+    for key in dicc_df.keys():
+        if 'precio' in key:
+            for col in dicc_df[key].columns:
+                if 'precio' in col:
+                    dicc_df[key][col].replace('', np.nan, inplace = True)
+
+    # Bucle para eliminar los registros con valores faltantes
+    for key in dicc_df.keys():
+        dicc_df[key].dropna(inplace = True)
+
+    
+    # NORMALIZACIÓN
+
+    # Doy el orden correcto a las columnas de los DF de precios_semana
+    for key in dicc_df.keys():
+        if 'precio' in key:
+            dicc_df[key] = dicc_df[key][['precio', 'producto_id', 'sucursal_id', 'fecha_semana']]
+
+    # Cambio el tipo de dato a las columnas 'precio' a float
+    for key in dicc_df.keys():
+        if 'precio' in key:
+            for col in dicc_df[key].columns:
+                if 'precio' in col:
+                    dicc_df[key][col] = dicc_df[key][col].astype(float)
+
+    
+    # Función para corregir errores en los id y poner el tipo de dato correcto
+    def mod_id_prod(x):
+        if isinstance(x,str):
+            x = x.split('-')[-1]
+        elif isinstance(x,float):
+            x = int(x)
+        else:    
+            x=x
+        return str(x).zfill(13) # Esta línea es para que los id queden con el formato de código EAN de 13 dígitos
+
+    for key in dicc_df.keys():
+        if 'precios_semana' in key or 'producto' in key:
+            for col in dicc_df[key].columns:
+                if col == 'producto_id':
+                    dicc_df[key][col] = dicc_df[key][col].apply(mod_id_prod)
+
+    
+    # Función para corregir los elementos de la columna 'sucursal_id'
+    # de los DF 'precios_semana' que presentan formato 'datetime'
+    def mod_suc_id(x):
+        if type(x) == datetime:
+            x=x.strftime("%#d-%#m-%Y")
+        return x
+
+    for key in dicc_df.keys():
+        if 'precio' in key:
+            for col in dicc_df[key].columns:
+                if 'sucursal_id' in col:
+                    dicc_df[key][col] = dicc_df[key][col].apply(mod_suc_id)
+
+
+    # Bucle para eliminar outliers de precios
+    for key in dicc_df.keys():
+        if 'precios_semana' in key:
+            for col in dicc_df[key].columns:
+                if 'precio' in col:
+                    dicc_df[key][col] = dicc_df[key][col][dicc_df[key][col] <= 1000000]
+
+
+    # REGISTROS DUPLICADOS:
+
+    # Bucle para eliminar los resgistros duplicados
+    for key in dicc_df.keys():   
+        dicc_df[key].drop_duplicates(inplace = True)
+
+    # Guardo un archivo parquet en MinIO con las tranformaciones realizadas
+    
+    for key in dicc_df.keys():
+        if "precio" in key:
+            df = dicc_df[key]
+            Load_MinIO(bucket=bucket_load, df=df, key=key)
+
+
+
+def load_CI(bucket:str):
+
+    dicc_df = get_data_minio_v2(bucket)
+    key = list(dicc_df.keys())[-1]
+    # Cargo el df_precios en la tabla 'precio'
+    dicc_df[key].to_sql(name="precio", con = connection, if_exists='append', index=False)
