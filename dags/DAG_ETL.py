@@ -8,7 +8,6 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 
 
-
 default_args = {
     'owner' : 'LBS',
     'retries' : 5,
@@ -29,39 +28,43 @@ with DAG(
     task_0 = EmptyOperator(
         task_id = 'ETL_inicio',
         dag = dag
-        )
+    )
 
     task_1 = PythonOperator(
         task_id = 'ET_sucursal',
-        python_callable = transform_sucursal
+        python_callable = transform_sucursal,
+        op_kwargs= {'bucket': 't-carga-inicial'}
     )
 
     task_2 = PythonOperator(
         task_id = 'ET_producto',
-        python_callable = transform_producto
+        python_callable = transform_producto,
+        op_kwargs= {'bucket': 't-carga-inicial'}
     )
 
     task_3 = PythonOperator(
         task_id = 'ET_precios',
-        python_callable = transform_precios
+        python_callable = transform_precios,
+        op_kwargs= {'bucket': 't-carga-inicial'}
     )
 
     task_4 = EmptyOperator(
         task_id = 'T_fin',
         dag = dag
-        )
+    )
 
 # Carga
 
     task_5 = PythonOperator(
         task_id = 'L_PostgreSQL',
-        python_callable = load
+        python_callable = load,
+        op_kwargs= {'bucket': 't-carga-inicial'}
     )
 
     task_6 = EmptyOperator(
         task_id = 'ETL_fin',
         dag = dag
-        )
+    )
 
 
 

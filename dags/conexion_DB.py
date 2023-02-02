@@ -4,10 +4,10 @@ import sqlalchemy as db
 
 access_key='airflow' # Nombre de cliente en PostgreSQL
 secret_key='airflow' # Contraseña de PostgreSQL
-host='host.docker.internal:5432' 
-database='relevamiento_precios' # Nombre de Base de datos a donde nos conectaremos
+host='host.docker.internal' 
+database='relevamiento-precios' # Nombre de Base de datos a donde nos conectaremos
 
 
-database_conection=db.create_engine(f'postgresql+psycopg2://{access_key}:{secret_key}@{host}/{database}')
-conection=database_conection.connect()
+database_connection=db.create_engine(f'postgresql+psycopg2://{access_key}:{secret_key}@{host}/{database}')
+connection=database_connection.connect()
 metadata=db.MetaData()
