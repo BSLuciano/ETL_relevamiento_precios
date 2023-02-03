@@ -80,7 +80,9 @@ sucursalTipo: clasificación del mercado
 ####   - Desarrollo 2)
 
     En éste caso utilicé DAGs de Airflow para automatizar y gestionar el proceso programando el flujo de las tareas. 
-    El contenido que tenía que compartir entre tareas superaba el tamaño máximo permitido, esto lo solucioné utilizando un bucket de MinIO como intermediario entre las tareas de transformación y carga, en él almacené los archivos ya transformados y luego los extraje en la tarea de carga a la base de datos de PostgreSQL.
+    El contenido que tenía que compartir entre tareas superaba el tamaño máximo permitido, esto lo solucioné utilizando
+    un bucket de MinIO como intermediario entre las tareas de transformación y carga, en él almacené los archivos ya
+    transformados y luego los extraje en la tarea de carga a la base de datos de PostgreSQL.
 
     Para la carga inicial los archivos utilizados estaban almacenados de forma local.
     En el caso de la carga incremental a modo de ejemplo supuse que el cliente cargaría una vez por semana
